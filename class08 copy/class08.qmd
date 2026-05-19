@@ -1,0 +1,236 @@
+---
+title: "Class 08: Breast Cancer Mini Proj"
+author: "Ryan Ellis (PID: A17673864)"
+format: pdf
+toc: TRUE
+---
+
+## Background 
+
+The goal of this mini-project is for you to explore a complete analysis using the unsupervised learning techniques covered in class. 
+
+We will analyze a data set describing a fine needle aspiration (FNA) of a breast mass.
+
+## Data Import 
+
+The data is made available as a CSV file for download. We can use the `read.csv()` function: 
+
+
+```{r}
+# IMPORTANT TO SET ROW NAMES EQUAL TO ONE
+wisc.df<- read.csv("WisconsinCancer.csv", row.names=1)
+```
+
+```{r}
+head(wisc.df, 3)
+```
+
+We need to exclude the `diagnosis` column for analysis as this is the answer we are trying to achieve. 
+
+```{r}
+# This will give us everything but the first column
+wisc.data <- wisc.df[,-1]
+diagnosis<- as.factor(wisc.df$diagnosis)
+```
+
+## Exploratory Data Analysis 
+
+> Q1. How many observations are in this dataset?
+
+```{r}
+nrow(wisc.df)
+```
+There are 569 patients or observations.
+
+> Q2. How many of the observations have a malignant diagnosis?
+
+```{r}
+table(diagnosis)
+```
+There are 357 benign and 212 are malignant. 
+
+> Q3. How many variables/features in the data are suffixed with _mean?
+
+We can use the `grep()` function:
+```{r}
+colnames(wisc.data)
+```
+
+```{r}
+length(grep("_mean",colnames(wisc.data)))
+```
+There are 10 variables with `_mean`
+
+## Principle Component Analysis (PCA)
+
+Need to scale data before PCA. `scale=TRUE` in the argument of `prcomp()`.
+
+```{r}
+
+## In general will always want to include scaling, will make the plots easier to interpret and present 
+
+wisc.pr<- prcomp(wisc.data, scale=TRUE)
+summary(wisc.pr)
+
+```
+
+> Q4. From your results, what proportion of the original variance is captured by the first principal component (PC1)?
+
+Around 44.27% of the data is captured via PC1
+
+> Q5. How many principal components (PCs) are required to describe at least 70% of the original variance in the data?
+
+To describe 70% of the data you need at least the first three PC's so PC1-PC3
+
+> Q6. How many principal components (PCs) are required to describe at least 90% of the original variance in the data?
+
+To get to 90% cumulative proportion it is necessary to have 7 principal components (PC1-PC7)
+
+## Lets visualize 
+
+```{r}
+biplot(wisc.pr)
+```
+
+> Q7. What stands out to you about this plot? Is it easy or difficult to understand? Why?
+
+The sheer amount of data that this plot is trying to visualize. It is extremely difficult to visualize much of anything within the plot due to the number of points and different thing occurring.
+
+```{r}
+library(ggplot2)
+ggplot(wisc.pr$x)+
+  aes(PC1, PC2, col=diagnosis)+
+  geom_point()
+```
+
+> Q8. Generate a similar plot for principal components 1 and 3. What do you notice about these plots?
+
+That both PC1/PC2 and PC1/PC3 are separated via diagnosis on PC1 axis, but both heavily overlap in PC2 and PC3. PC1 captures the most amount of variance.
+
+```{r}
+ggplot(wisc.pr$x)+
+  aes(PC1, PC3, col=diagnosis)+
+  geom_point()
+```
+
+## Varaince 
+
+We will make a scree plot, which will show us the variance that each PC indicates. Basically creates a exponential graph (hill), that will show when adding new PC's doesn't really make sense anymore.
+
+```{r}
+pr.var<-(wisc.pr$sdev^2)
+```
+
+```{r}
+pve<- ((pr.var)/(30))
+
+plot(c(1,pve), xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+```
+
+## Commuicating PCA Results 
+
+>Q9. For the first principal component, what is the component of the loading vector (i.e. wisc.pr$rotation[,1]) for the feature concave.points_mean? This tells us how much this original feature contributes to the first PC. Are there any features with larger contributions than this one?
+
+```{r}
+wisc.pr$rotation[,1]
+```
+
+The proportional component of PC1 that is `concave.points_mean` is -.261, and there is no other component with as much magnitude. This means that this feature has the biggest influence on where the point (patient) is placed in the PC1 axis.
+
+## Hierarchical Clustering 
+
+```{r}
+wisc.hclust <- hclust(dist(scale(wisc.data)))
+plot(wisc.hclust)
+```
+
+## Combine Methods 
+
+```{r}
+d<-dist(wisc.pr$x[,1:4])
+wisc.pr.hclust<- hclust(d, method="ward.D2")
+plot(wisc.pr.hclust)
+abline(h=75, col="green")
+```
+
+```{r}
+grps<- cutree(wisc.pr.hclust, h=75)
+table(grps)
+# These results are similar to the diagnosis, where we cluster the two groups into Malignant and Beningn
+```
+
+How does this clustering in `grps()` correspond to the expert `diagnosis`
+
+```{r}
+table(diagnosis)
+```
+
+```{r}
+table(diagnosis, grps)
+```
+
+>Q10. Using the plot() and abline() functions, what is the height at which the clustering model has 4 clusters?
+
+```{r}
+plot(wisc.hclust)
+abline(h=19, col="red", lty=2)
+```
+The hieght at which the normal clustering model has 4 clusters without PCA is around 19. 
+
+> Q12. Which method gives your favorite results for the same data.dist dataset? Explain your reasoning.
+
+```{r}
+method.hclust<- hclust(dist(scale(wisc.data)), method="average")
+plot(method.hclust)
+
+method.hclust<- hclust(dist(scale(wisc.data)), method="complete")
+plot(method.hclust)
+
+method.hclust<- hclust(dist(scale(wisc.data)), method="single")
+plot(method.hclust)
+
+method.hclust<- hclust(dist(scale(wisc.data)), method="ward.D2")
+plot(method.hclust)
+```
+
+The best method is `ward.D2`, also average is alright. They both aim to spread the data put so it is easier to interpret the clusters. but `ward.D2` does a much better job of this when looking at the above plots of the different methods.
+
+> Q13. How well does the newly created hclust model with two clusters separate out the two “M” and “B” diagnoses?
+
+It does decently when we compare it to the expert diagnosis, it shows that we have 6 false positive for benign and 47 false negatives for malignant. This is shown in the table above plotted grps versus diagnosis.
+
+> Q14. How well do the hierarchical clustering models you created in the previous sections (i.e. without first doing PCA) do in terms of separating the diagnoses? Again, use the table() function to compare the output of each model (wisc.hclust.clusters and wisc.pr.hclust.clusters) with the vector containing the actual diagnoses.
+
+```{r}
+wisc.hclust.clusters <- cutree(wisc.hclust, k=2)
+table(diagnosis,wisc.hclust.clusters)
+```
+
+Before using PCA, we can see that there is almost no separation between the two types, benign and malignant. Although when using PCA we have some false negative and positives, without it we cant really even interpret anything.
+
+## Prediction
+
+We will now utilize the `predict()` function to combine our previous PCA model and and some new data (cancer cell data)
+
+```{r}
+url <- "https://tinyurl.com/new-samples-CSV"
+new <- read.csv(url)
+npc <- predict(wisc.pr, newdata=new)
+npc
+```
+
+```{r}
+plot(wisc.pr$x[,1:2], col=grps)
+points(npc[,1], npc[,2], col="blue", pch=16, cex=3)
+text(npc[,1], npc[,2], c(1,2), col="white")
+```
+
+
+> Q16. Which of these new patients should we prioritize for follow up based on your results?
+
+When viewing the plot, and based off the previous conclusions drawn from the PCA plots, a malignant patient(tumor), is likely to be in the negative portion on the x axis (PC1). Thus when comparing patient 1 and 2 because patient 2 lies on the negative side amoungst the malignant patients I would predict this patient to be prioritized.
+
+
+
