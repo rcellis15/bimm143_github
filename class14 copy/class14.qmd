@@ -1,0 +1,192 @@
+---
+title: "Class 14: Pathway Analysis from RNA-Seq Results"
+author: "Ryan Ellis (PID: A17673864)"
+format: pdf
+toc: TRUE
+---
+
+## Background
+
+This Class we will be running thru an entire DESeq2 analysis using the `DESeq2` package. These skills where developed in the previous class(13) and are exapanded down below.
+
+## Data Import 
+read counts & metadata CSV files 
+
+```{r import}
+metadata<- read.csv("GSE37704_metadata.csv", row.names=1)
+counts<- read.csv("GSE37704_featurecounts.csv", row.names=1)
+```
+
+```{r}
+metadata
+# Need to remove the "length" column in `counts`
+head(counts)
+```
+
+## Sannity Check 
+
+> Q. Complete the code below to remove the troublesome first column from countData
+
+```{r}
+countData <- as.matrix(counts[,-1])
+head(countData)
+```
+
+```{r}
+all(colnames(countData)== metadata$id)
+```
+
+> Q. Complete the code below to filter countData to exclude genes (i.e. rows) where we have 0 read count across all samples (i.e. columns).
+
+When we sum across the rows using `rowSums()` function and the answer is 0 this means w have 0 counts for that gene in all experiments.
+
+```{r}
+to.keep<- rowSums(countData)!=0
+countData = countData[to.keep, ]
+head(countData)
+```
+
+```{r}
+dim(countData)
+```
+
+## Set up DESeq object 
+
+```{r, warning=FALSE}
+library(DESeq2)
+
+dds=DESeqDataSetFromMatrix(countData = countData,
+                           colData = metadata ,
+                           design = ~condition)
+```
+
+## Run DESeq analysis pipeline 
+```{r}
+dds<-DESeq(dds)
+res<- results(dds)
+```
+
+## Extract Results 
+big table with log2fold changes and p-value 
+
+```{r}
+dds<-DESeq(dds)
+res<- results(dds)
+head(res)
+```
+## Data visulization 
+Volcano plot 
+
+```{r}
+my_cols<-rep("gray",nrow(res))
+my_cols[abs(res$log2FoldChange)> 2]<- "red"
+my_cols[res$padj>0.05]<- "grey"
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(res)+
+  aes(log2FoldChange,-log(padj))+
+  geom_point(alpha=0.3, color=my_cols)+
+  geom_vline(xintercept= c(-2,+2), col="blue")+
+  geom_hline(yintercept = -log(0.05), col="blue")
+```
+
+## Add annotation data 
+add gene symbols and entrez ids 
+
+```{r}
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+```
+
+```{r}
+columns(org.Hs.eg.db)
+res$symbol<-mapIds(org.Hs.eg.db,
+      keys=row.names(res),
+       keytype="ENSEMBL", 
+      column="SYMBOL",
+      multiVals = "first")
+res$name<-mapIds(org.Hs.eg.db,
+      keys=row.names(res),
+       keytype="ENSEMBL", 
+      column="GENENAME",
+      multiVals = "first")
+res$entrez<-mapIds(org.Hs.eg.db,
+      keys=row.names(res),
+       keytype="ENSEMBL", 
+      column="ENTREZID",
+      multiVals = "first")
+head(res,10)
+```
+
+> Q. Finally for this section let's reorder these results by adjusted p-value and save them to a CSV file in your current project directory.
+
+```{r}
+res = res[order(res$pvalue),]
+write.csv(res, file ="deseq_results.csv")
+```
+
+## Pathway analysis 
+KEGG, GO and REACTOME
+
+```{r, message=FALSE}
+library(pathview)
+library(gage)
+library(gageData)
+```
+
+```{r}
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+```
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+
+```{r}
+keggres=gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+```
+![](hsa04110.pathview.png)
+## Gene Ontology (GO)
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets)
+
+lapply(gobpres, head)
+```
+
+## REACTOME 
+
+There is an R package for this type of analysis 
+
+to use the website you either paste or upload a list of differential expressed genes (DEGS):
+
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+> Q: What pathway has the most significant “Entities p-value”? Do the most significant pathways listed match your previous KEGG results? What factors could cause differences between the two methods?
+
+The most significant `entities p-val` (lowest p-val) is the SMAC(DIABLO)-mediated dissociation of IAP- caspase complexes. This can be seen in the KEGG png, as smc1/3 which are both highlighted as green. All these pathways found in the REACTOME are also highlighted as green in the KEGG pathway illustration. The frequency that a database is updated could cause differences between the two methods, if one is relying on old outdated information it could lead to discrepancies. 
+
+## Save .csv results 
+
+```{r}
+write.csv(res, file="myresults_annotated.csv")
+```
+

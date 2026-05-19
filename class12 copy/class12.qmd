@@ -1,0 +1,74 @@
+---
+title: "Class 12: HW Population Analysis Pt.2"
+author: "Ryan Ellis (PID: A17673864)"
+format: pdf
+toc: true
+---
+
+## Section 1. Proportion of G/G in a population
+
+Downloaded a CSV file from ensemble-->https://www.ensembl.org/Homo_sapiens/Variation/Sample?db=core;r=17:39894595-39895595;v=rs8067378;vdb=variation;vf=959672880#_
+
+```{r}
+MXL<- read.csv("373531-SampleGenotypes-Homo_sapiens_Variation_Sample_rs8067378.csv")
+head(MXL)
+```
+
+```{r}
+round(table(MXL$Genotype..forward.strand.)/nrow(MXL)*100,2)
+```
+
+Lets look at the GBR dataset
+
+```{r}
+GBR<-read.csv("373522-SampleGenotypes-Homo_sapiens_Variation_Sample_rs8067378.csv")
+```
+
+```{r}
+round(table(GBR$Genotype..forward.strand.)/nrow(GBR)*100,2)
+```
+
+This variant (GG) that is associated with childhood asthma is more frequent in GBR populations than MXL populations. 
+
+Further dig. 
+
+## Homework Problems
+
+> Q13: Read this file into R and determine the sample size for each genotype and their
+corresponding median expression levels for each of these genotypes.
+
+```{r}
+pop<- read.table("rs8067378_ENSG00000172057.6.txt")
+
+nrow(pop)
+table(pop$geno)
+
+?median()
+
+```
+```{r}
+head(pop)
+```
+
+```{r}
+library(dplyr)
+pop|>
+  arrange(geno)|>
+  group_by(geno)|>
+  summarize(MedianExp<-median(exp))
+```
+
+Sample size= 462
+AA: 108 (median expression:31.2), AG:233(median expression:25.1), GG:121(median expression: 20.1)
+
+> Q14: Generate a boxplot with a box per genotype, what could you infer from the relative
+expression value between A/A and G/G displayed in this plot? Does the SNP effect the
+expression of ORMDL3?
+
+```{r}
+library(ggplot2)
+ggplot(pop)+
+  aes(x=geno, y=exp, fill=geno)+
+  geom_boxplot(notch=TRUE)
+```
+You can infer using the above box plot, that genotyping has a correlation with expression levels. With GG showing lower expression levels than AA. Yes these SNP variation do indeed seem to play a role in ORMDL3 expression, so depending on the variation this will either have an increase or decrease in expression levels.  

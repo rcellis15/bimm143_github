@@ -1,0 +1,181 @@
+---
+title: "Class 11: Protein Structure Prediction with AlphaFold"
+author: "Ryan Ellis (PID: A17673864)"
+format: pdf
+toc: TRUE
+---
+
+## Background 
+
+Today we will be using R in conjunction with alpha fold to read and interpret biological data. Alpha fold is an incredibly powerful ai tool designed for solving biological structures. With the help of R we can intrepret some of its data. 
+
+## Section 8 Custom Analysis 
+
+```{r}
+results_class11<-"hivpr_dimer_23119/"
+```
+
+```{r}
+pdb_files <- list.files(path=results_class11,
+                        pattern="*.pdb",
+                        full.names=TRUE)
+
+basename(pdb_files)
+```
+
+```{r}
+library(bio3d)
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+```{r}
+rd<- rmsd(pdbs, fit=TRUE)
+```
+
+```{r}
+range(rd)
+```
+
+```{r}
+library(pheatmap)
+pheatmap(rd)
+```
+
+```{r}
+colnames(rd)<- paste0("m",1:5)
+rownames(rd)<- paste0("m",1:5)
+pheatmap(rd)
+```
+
+This heat map shows similarities amoungst models. For example the more red two boxes are the more similar they are to one another. and the same with blue, the more polarizing the color difference the greater the differnece in the models. 
+
+> Plotting the plDDT values across the varying mdoels
+
+```{r}
+#1hsg is our starting HIV protease 
+pdb<- read.pdb("1hsg")
+```
+
+```{r}
+plotb3(pdbs$b[1,], typ="l", lwd=2, sse=pdb)
+points(pdbs$b[2,], typ="l", col="lightblue")
+points(pdbs$b[3,], typ="l", col="green")
+points(pdbs$b[4,], typ="l", col="black")
+points(pdbs$b[5,], typ="l", col="yellow")
+abline(v=100, col="brown")
+```
+
+```{r, message=FALSE}
+core<- core.find(pdbs)
+```
+
+```{r}
+core.inds<- print(core, vol=0.5)
+```
+
+```{r}
+xyz <- pdbfit(pdbs, core.inds, outpath="corefit_structures")
+```
+
+Next using our new variable `xyz` we can examine the RMSF between the poisiton which was found using core and strcutre which is found in pdb. 
+```{r}
+rf<- rmsf(xyz)
+plotb3(rf,sse=pdb)
+
+abline(v=100, col="black", ylab="rmsf")
+```
+It appears that the first chain is highly variable as the RMSF value flucuates quite alont, and the second chain whihc is past the abline is not very variable. 
+
+## Predicted Alignment Error for domains 
+
+Alpha fold produces a PAE in `JSON` format. 
+
+```{r}
+library(jsonlite)
+
+pae_files<- list.files(path=results_class11,
+                       pattern=".*model.*\\.json", 
+                       full.names=TRUE)
+```
+
+```{r}
+pae2<- read_json(pae_files[2],simplifyVector = TRUE)
+pae4<- read_json(pae_files[4],simplifyVector = TRUE)
+
+attributes(pae4)
+```
+
+```{r}
+head(pae4$ptm)
+```
+```{r}
+pae4$max_pae
+```
+max_pae shows how powerful a model is. Having a higher score indiactes a worse model. 
+
+```{r}
+pae4$max_pae>pae2$max_pae
+```
+This shows that model 4 is likely a worse model than 2 
+
+Here we are using a function within Bio3d, we could use ggplot to show residue position and PAE score. 
+
+> Here is model 4 with its residue numbers and PAE score colored. 
+
+```{r}
+plot.dmat(pae4$pae)
+```
+```{r}
+plot.dmat(pae4$pae, 
+          grid.col="black",
+          zlim=c(0,30))
+```
+Z range changes the coloring thresholds as seen in the legend to the right. 
+
+```{r}
+plot.dmat(pae2$pae, 
+          grid.col="black",
+          zlim=c(0,30))
+```
+
+## Residue conversion 
+
+```{r}
+aln_file<- list.files(path=results_class11,
+                      pattern=".a3m$",
+                      full.names=TRUE)
+```
+
+```{r}
+align<- read.fasta(aln_file[1], to.upper=TRUE)
+```
+
+```{r}
+dim(align$ali)
+?abline()
+```
+This shows the number of sequences within our original file that are in alignment. 
+
+```{r}
+sim<- conserv(align)
+
+plotb3(sim[1:99], sse=trim.pdb(pdb, chain="A"), ylabel="conservation score")
+
+abline(h=0.80, col="red")
+```
+
+I have added a `abline()` to show the bases I am refering to. Buth the 25-28 are all above this `abline()` indicating a highly conserved region and not just a single residue. 
+
+```{r}
+con <- consensus(align, cutoff = 0.9)
+con$seq
+```
+
+## Lets view in Mol* 
+
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+occ <- vec2resno(c(sim[1:99], sim[1:99]), m1.pdb$atom$resno)
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
