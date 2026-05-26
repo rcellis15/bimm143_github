@@ -193,8 +193,4 @@ ggplot(gapminder)+
   facet_wrap(~continent)
 ```
 
-```{r, message=F}
-ggplot(gapminder)+
-  aes(lifeExp, fill=continent)+
-  geom_col()
-```
+
