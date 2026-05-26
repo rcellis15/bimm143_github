@@ -10,4 +10,4 @@ Class 5: [Data visualization using ggplot2](class05/class05.pdf)
 
 Class 6: [R functions](class06/class06.pdf)
 
-Class 7: 
+Class 7: [Machine Learning]()
